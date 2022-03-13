@@ -1,0 +1,75 @@
+# Name your workflow
+name: CI
+
+# Set on which events you want run the actions.
+# In this case the workflow will run on push for master and on pull request for master and develop branches
+on:
+  push:
+    branches:
+      - 'master'
+  pull_request:
+    branches:
+      - '*'         # matches every branch that doesn't contain a '/'
+      - '*/*'       # matches every branch containing a single '/'
+      - '**'        # matches every branch
+jobs:
+  Linux:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout master branch
+        uses: actions/checkout@v2
+
+      - name: Setup Conan and CMake
+        run : |
+          #install system build dependency
+          sudo apt update
+          sudo apt-get -y install build-essential curl unzip tar pkg-config cmake python3-pip gdb
+
+          sudo pip install conan
+      - name: build and test
+        run : |
+          CURRENT_DIR=`pwd`
+          mkdir build_test/
+          cd build_test/
+          cmake -DCMAKE_BUILD_TYPE=debug .. && make -j 12
+          bash -c $(find ./ -name 'AVLTree' | grep 'bin' | sed -r 's/\/\//\//g')
+          cd ${CURRENT_DIR}/src/AVLTree/inputTest
+          ./test.bash
+
+  MacOS:
+    strategy:
+      matrix:
+        os: [macos-11.0]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout master branch
+        uses: actions/checkout@v2
+
+      - name: Setup Conan and CMake
+        run : |
+          #install system build dependency
+          brew update
+          brew install conan
+          brew install cmake
+          conan profile new default --detect --force
+
+      - name: build and test
+        run : |
+          CURRENT_DIR=`pwd`
+          mkdir build_test/
+          cd build_test/
+          cmake -DCMAKE_BUILD_TYPE=debug .. && make -j 12
+          bash -c $(find ./ -name 'AVLTree' | grep 'bin' | sed 's/\/\//\//g')
+          mkdir -p /usr/local/include/bits
+          wget "https://raw.githubusercontent.com/AkideLiu/CCCT/master/include/bits/stdc%2B%2B.h" -O /usr/local/include/bits/stdc++.h
+          cd ${CURRENT_DIR}/src/AVLTree/inputTest
+          ./test.bash
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
